@@ -9,6 +9,8 @@ add_executable(ember
     src/main.cpp
     src/memory.cpp
     src/dump.cpp
+    src/cpu.cpp
+    src/alu.cpp
 )
 
 if(MSVC)

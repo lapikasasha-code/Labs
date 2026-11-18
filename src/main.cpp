@@ -10,6 +10,8 @@
 #include <sstream>
 #include <string>
 
+#include "alu.hpp"
+#include "cpu.hpp"
 #include "dump.hpp"
 #include "memory.hpp"
 
@@ -26,18 +28,39 @@ static bool parse_number(const std::string& word, long& out) {
     }
 }
 
+static bool run_alu(const std::string& name, Byte a, Byte b, Byte& out, Flags& f) {
+    if (name == "add") out = alu_add(a, b, f);
+    else if (name == "sub") out = alu_sub(a, b, f);
+    else if (name == "and") out = alu_and(a, b, f);
+    else if (name == "or") out = alu_or(a, b, f);
+    else if (name == "xor") out = alu_xor(a, b, f);
+    else if (name == "not") out = alu_not(a, f);
+    else if (name == "shl") out = alu_shl(a, f);
+    else if (name == "shr") out = alu_shr(a, f);
+    else if (name == "inc") out = alu_inc(a, f);
+    else if (name == "dec") out = alu_dec(a, f);
+    else return false;
+    return true;
+}
+
 static void print_help() {
     std::cout << "commands:\n"
               << "  inc <addr>        increase value by one byte\n"
               << "  dump              print all " << MEM_SIZE << " bytes\n"
               << "  get <addr>        show one byte four ways\n"
               << "  set <addr> <val>  write one byte (dec or 0x hex)\n"
+              << "  reg <a|b> <val>   put a value into register A or B\n"
+              << "  regs              print PC A B Z N C\n"
+              << "  step              execute one instruction at PC\n"
+              << "  alu <op> <a> [b]  try one ALU operation (add sub and or xor not shl shr inc dec)\n"
               << "  help              this list\n"
               << "  quit              leave\n";
 }
 
 int main() {
     Memory mem;  // 4096 bytes, on the stack, zeroed by the {} in memory.hpp
+    CPU cpu;
+    cpu.mem = &mem;
 
     std::cout << "ember 0.1 - 4096 bytes of memory you can see. Type `help`.\n";
 
@@ -98,6 +121,37 @@ int main() {
             } else {
                 Byte b = mem_get(mem, (std::size_t)addr);
                 mem_set(mem, (std::size_t)addr, (Byte)(b + 1));
+            }
+        } else if (cmd == "reg") {
+            std::string r, v;
+            long value = 0;
+            if (!(words >> r) || !(words >> v) || !parse_number(v, value) || value < 0 ||
+                value > 255) {
+                std::cout << "usage: reg <a|b> <0..255>\n";
+            } else if (r == "a") {
+                cpu.a = (Byte)value;
+            } else if (r == "b") {
+                cpu.b = (Byte)value;
+            } else {
+                std::cout << "unknown register: " << r << '\n';
+            }
+        } else if (cmd == "regs") {
+            dump_regs(cpu);
+        } else if (cmd == "step") {
+            step(cpu);
+        } else if (cmd == "alu") {
+            std::string name, x, y;
+            long a = 0, b = 0;
+            Byte result = 0;
+            Flags f;
+            words >> name >> x;
+            if (words >> y && !parse_number(y, b)) b = -1;
+            if (!parse_number(x, a) || a < 0 || a > 255 || b < 0 || b > 255 ||
+                !run_alu(name, (Byte)a, (Byte)b, result, f)) {
+                std::cout << "usage: alu <add|sub|and|or|xor|not|shl|shr|inc|dec> <a> [b]\n";
+            } else {
+                std::cout << "result=" << (int)result << "  Z=" << f.z << " N=" << f.n
+                          << " C=" << f.c << '\n';
             }
         } else {
             std::cout << "unknown command: " << cmd << " (try `help`)\n";
