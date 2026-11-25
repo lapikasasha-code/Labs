@@ -49,8 +49,10 @@ static void print_help() {
               << "  dump              print all " << MEM_SIZE << " bytes\n"
               << "  get <addr>        show one byte four ways\n"
               << "  set <addr> <val>  write one byte (dec or 0x hex)\n"
+              << "  set16 <addr> <val> write a 16-bit value, low byte first\n"
+              << "  run               step until HALT\n"
               << "  reg <a|b> <val>   put a value into register A or B\n"
-              << "  regs              print PC A B Z N C\n"
+              << "  regs              print PC H A B Z N C\n"
               << "  step              execute one instruction at PC\n"
               << "  alu <op> <a> [b]  try one ALU operation (add sub and or xor not shl shr inc dec)\n"
               << "  help              this list\n"
@@ -139,6 +141,22 @@ int main() {
             dump_regs(cpu);
         } else if (cmd == "step") {
             step(cpu);
+        } else if (cmd == "run") {
+            run(cpu);
+        } else if (cmd == "set16") {
+            std::string a, v;
+            long addr = 0, value = 0;
+            if (!(words >> a) || !(words >> v) || !parse_number(a, addr) ||
+                !parse_number(v, value)) {
+                std::cout << "usage: set16 <addr> <value>\n";
+            } else if (addr < 0) {
+                std::cout << "address must not be negative\n";
+            } else if (value < 0 || value > 0xFFFF) {
+                std::cout << "a 16-bit value is 0..65535, got " << value << '\n';
+            } else if (!set16(mem, (std::size_t)addr, (std::uint16_t)value)) {
+                std::cout << "address " << addr << " is outside 0.." << MEM_SIZE - 2
+                          << '\n';
+            }
         } else if (cmd == "alu") {
             std::string name, x, y;
             long a = 0, b = 0;

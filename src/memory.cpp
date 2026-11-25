@@ -16,3 +16,15 @@ bool mem_set(Memory& mem, std::size_t addr, Byte value) {
     mem.data[addr] = value;
     return true;
 }
+std::uint16_t get16(const Memory& mem, std::size_t addr) {
+    Byte lo = mem_get(mem, addr);
+    Byte hi = mem_get(mem, addr + 1);
+    return (std::uint16_t)(lo | (hi << 8));
+}
+
+bool set16(Memory& mem, std::size_t addr, std::uint16_t value) {
+    if (addr + 1 >= MEM_SIZE) return false;
+    mem.data[addr] = (Byte)(value & 0xFF);
+    mem.data[addr + 1] = (Byte)((value >> 8) & 0xFF);
+    return true;
+}
