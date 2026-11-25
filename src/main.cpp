@@ -14,6 +14,7 @@
 #include "cpu.hpp"
 #include "dump.hpp"
 #include "memory.hpp"
+#include "screen.hpp"
 
 // Turn a word into a number. Accepts decimal (65) and hex (0x41).
 // Returns false if the word is not a number at all.
@@ -52,6 +53,10 @@ static void print_help() {
               << "  set16 <addr> <val> write a 16-bit value, low byte first\n"
               << "  run               step until HALT (at most 100000 steps)\n"
               << "  find <lo> <hi> <byte>  first address in [lo, hi) holding byte\n"
+              << "  show              draw the screen (64x32 at 0xA00)\n"
+              << "  cls               clear the screen\n"
+              << "  plot <x> <y>      light one pixel\n"
+              << "  frame             draw a frame around the screen\n"
               << "  reg <a|b> <val>   put a value into register A or B\n"
               << "  regs              print PC H A B Z N C\n"
               << "  step              execute one instruction at PC\n"
@@ -144,6 +149,28 @@ int main() {
             step(cpu);
         } else if (cmd == "run") {
             run(cpu);
+        } else if (cmd == "show") {
+            show(mem);
+        } else if (cmd == "cls") {
+            clear(mem);
+        } else if (cmd == "plot") {
+            std::string xs, ys;
+            long x = 0, y = 0;
+            if (!(words >> xs) || !(words >> ys) || !parse_number(xs, x) || !parse_number(ys, y)) {
+                std::cout << "usage: plot <x> <y>\n";
+            } else if (x < 0 || x >= SCREEN_W || y < 0 || y >= SCREEN_H ||
+                       !plot(mem, (int)x, (int)y)) {
+                std::cout << "pixel must be inside 0..63 x 0..31\n";
+            }
+        } else if (cmd == "frame") {
+            for (int x = 0; x < SCREEN_W; ++x) {
+                plot(mem, x, 0);
+                plot(mem, x, SCREEN_H - 1);
+            }
+            for (int y = 0; y < SCREEN_H; ++y) {
+                plot(mem, 0, y);
+                plot(mem, SCREEN_W - 1, y);
+            }
         } else if (cmd == "find") {
             std::string l, h, v;
             long lo = 0, hi = 0, value = 0;

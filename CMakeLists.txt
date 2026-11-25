@@ -11,6 +11,7 @@ add_executable(ember
     src/dump.cpp
     src/cpu.cpp
     src/alu.cpp
+    src/screen.cpp
 )
 
 if(MSVC)

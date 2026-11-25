@@ -4,11 +4,13 @@
 #include <iostream>
 
 #include "alu.hpp"
+#include "screen.hpp"
 
 const Byte GROUP_CONTROL = 0x0;
 const Byte GROUP_ALU = 0x1;
 const Byte GROUP_DATA = 0x2;
 const Byte GROUP_JUMP = 0x3;
+const Byte GROUP_SCREEN = 0x4;
 
 struct Decoded {
     Byte group;
@@ -32,6 +34,7 @@ static std::uint16_t instruction_size(Byte op) {
     case OP_STORE_A:
     case OP_STORE_B:
     case OP_LOADH:
+    case OP_OUTS:
     case OP_JMP:
     case OP_JZ:
     case OP_JNZ:
@@ -41,12 +44,21 @@ static std::uint16_t instruction_size(Byte op) {
     }
 }
 
+static void outs(const Memory& mem, std::size_t addr) {
+    for (std::size_t i = 0; i < OUTS_LIMIT && addr + i < MEM_SIZE; ++i) {
+        Byte c = mem_get(mem, addr + i);
+        if (c == 0) break;
+        std::cout << (char)c;
+    }
+}
+
 static bool exec_control(CPU& cpu, Byte op) {
     switch (op) {
     case OP_HALT: cpu.halted = true; return true;
     case OP_NOP: return true;
     case OP_OUT: std::cout << (char)cpu.a; return true;
     case OP_OUTN: std::cout << (int)cpu.a << ' '; return true;
+    case OP_OUTS: outs(*cpu.mem, get16(*cpu.mem, (std::size_t)cpu.pc + 1)); return true;
     default: return false;
     }
 }
@@ -103,6 +115,15 @@ static bool exec_jump(CPU& cpu, Byte op, std::uint16_t& next) {
     }
 }
 
+static bool exec_screen(CPU& cpu, Byte op) {
+    switch (op) {
+    case OP_CLS: clear(*cpu.mem); return true;
+    case OP_PLOT: cpu.f.c = !plot(*cpu.mem, cpu.a, cpu.b); return true;
+    case OP_SHOW: show(*cpu.mem); return true;
+    default: return false;
+    }
+}
+
 void step(CPU& cpu) {
     if (cpu.halted) {
         std::cout << "halted\n";
@@ -129,6 +150,7 @@ void step(CPU& cpu) {
     case GROUP_ALU: known = exec_alu(cpu, op); break;
     case GROUP_DATA: known = exec_data(cpu, op); break;
     case GROUP_JUMP: known = exec_jump(cpu, op, next); break;
+    case GROUP_SCREEN: known = exec_screen(cpu, op); break;
     default: known = false; break;
     }
 
