@@ -840,3 +840,228 @@ found at 2577 (0xa11)
 ```
 
 `0xA11` → `0xA11 - 0xA00 = 17 = 2 * 8 + 1`: рядок `y = 2`, байт 1 (пікселі x = 8..15), значення `0x04` = біт 2 → `x = 8 + (7 - 2) = 13`. Знайшли саме той піксель, який засвітили.
+
+---
+
+# Lab 06 — іменовані набори: структури, переліки, купа
+
+## M1 — `enum class Op` і розкладка структур
+
+Константи `OP_*` замінено на перелік зі значеннями з ISA.uk.md:
+
+```cpp
+enum class Op : std::uint8_t {
+    Halt    = 0x00,
+    Nop     = 0x01,
+    ...
+    Plot    = 0x41,
+    Show    = 0x43,
+};
+```
+
+`step` читає сирий байт, один раз перетворює його на `Op op = (Op)byte;`, і далі всі `switch` ідуть по `Op`. Сирий байт лишається тільки для двох речей: групи (`(byte >> 4) & 0x0F`) і повідомлення про невідомий опкод. Невідомий байт і далі помилка:
+
+```txt
+ember> set 0 0x77
+ember> run
+error: unknown opcode 0x77 at PC=0x0000
+```
+
+Поведінка не змінилась: `checks/lab-02.txt` … `checks/lab-05.txt` дають той самий вивід, що й до рефакторингу.
+
+### `sizeof` і вирівнювальні байти
+
+Нова команда `layout` друкує розміри й зсуви полів (`offsetof`):
+
+```txt
+ember> layout
+sizeof(Flags)  = 3  z@0 n@1 c@2
+sizeof(CPU)    = 24  mem@0 pc@8 a@10 b@11 h@12 f@14 halted@17
+sizeof(Sprite) = 5  x@0 y@1 vx@2 vy@3 alive@4
+```
+
+Розкладка `CPU` (64-бітна машина):
+
+```txt
+зсув  розмір  поле
+0     8       Memory* mem
+8     2       uint16_t pc
+10    1       Byte a
+11    1       Byte b
+12    2       uint16_t h
+14    3       Flags f   (z, n, c — по байту)
+17    1       bool halted
+18    6       вирівнювальні байти
+      ----
+      24
+```
+
+Поля разом займають 18 байтів, але `sizeof(CPU) = 24`. Найбільше вирівнювання в `CPU` має вказівник `mem` (8 байтів), тому розмір структури округлюється до кратного 8: у кінець додаються 6 вирівнювальних байтів. Тоді в масиві `CPU[2]` поле `mem` другого елемента теж стоїть на адресі, кратній 8. Усередині структури дірок немає: кожне поле вже стоїть на кратному своєму розміру зсуві.
+
+`Flags` і `Sprite` складаються лише з однобайтових полів, тому вирівнювання не потрібне: `3 = 1+1+1`, `5 = 1+1+1+1+1`.
+
+## M2 — спрайти
+
+```cpp
+struct Sprite {
+    std::uint8_t x, y;
+    std::int8_t vx, vy;
+    bool alive;
+};
+
+Sprite sprites[8]{};   // у main, на хості
+```
+
+- `sprite <i> <x> <y> <vx> <vy>` — заповнює спрайт `i` і робить його живим.
+- `tick` — гасить екран, рухає кожен живий спрайт на `(vx, vy)`, малює його через `plot` і робить `show`. Якщо наступна координата виходить за 0..63 (або 0..31), швидкість по цій осі міняє знак — спрайт відскакує.
+
+Демонстрація: два спрайти біля протилежних кутів, обидва відскакують від країв.
+
+```txt
+ember> sprite 0 62 1 1 1
+ember> sprite 1 1 30 -1 1
+ember> tick
+```
+
+| tick | спрайт 0 | спрайт 1 | що сталось |
+|---|---|---|---|
+| 1 | (63, 2) | (0, 31) | рух |
+| 2 | (62, 3) | (1, 30) | 0: відскок від правого краю; 1: від лівого й нижнього |
+| 3 | (61, 4) | (2, 29) | рух уже з новими швидкостями |
+
+Рядки з `show` після кожного `tick` (решта рядків порожні):
+
+```txt
+tick 1
+y=2   ...............................................................#
+y=31  #...............................................................
+
+tick 2
+y=3   ..............................................................#.
+y=30  .#..............................................................
+
+tick 3
+y=4   .............................................................#..
+y=29  ..#.............................................................
+```
+
+## M3 — `new` / `delete` і санітайзер
+
+Тимчасовий `scratch.cpp`, зібраний так само, як приклади з notes:
+
+```bash
+c++ -std=c++17 -g -fsanitize=address,undefined -fno-omit-frame-pointer scratch.cpp -o scratch
+```
+
+```cpp
+#include <iostream>
+
+struct Sprite {
+    unsigned char x, y;
+    signed char vx, vy;
+    bool alive;
+};
+
+int main(int argc, char**) {
+    if (argc == 1) {
+        Sprite* p = new Sprite{10, 5, 1, 0, true};
+        p = nullptr;                          // витік
+    } else if (argc == 2) {
+        Sprite* p = new Sprite{10, 5, 1, 0, true};
+        delete p;
+        std::cout << (int)p->x << '\n';       // читання після звільнення
+    } else {
+        Sprite* p = new Sprite{10, 5, 1, 0, true};
+        delete p;
+        delete p;                             // подвійне звільнення
+    }
+}
+```
+
+Усі три випадки прогнані на Linux, тому витік показано справжнім звітом LeakSanitizer.
+
+### Витік — `./scratch`
+
+```txt
+==420==ERROR: LeakSanitizer: detected memory leaks
+
+Direct leak of 5 byte(s) in 1 object(s) allocated from:
+    #0 0x7f64c80fe548 in operator new(unsigned long) ../../../../src/libsanitizer/asan/asan_new_delete.cpp:95
+    #1 0x555ab46c8310 in main scratch.cpp:11
+    ...
+SUMMARY: AddressSanitizer: 5 byte(s) leaked in 1 allocation(s).
+```
+
+Об'єкт на 5 байтів (`sizeof(Sprite)`), виділений у рядку 11, живий до кінця програми, але після `p = nullptr` на нього не лишилось жодного вказівника, тож звільнити його вже нікому.
+
+### Читання після звільнення — `./scratch a`
+
+```txt
+==423==ERROR: AddressSanitizer: heap-use-after-free on address 0x502000000010 at pc 0x55b6f3e158b7 bp 0x7ffcf3a7e220 sp 0x7ffcf3a7e210
+READ of size 1 at 0x502000000010 thread T0
+    #0 0x55b6f3e158b6 in main scratch.cpp:16
+    ...
+0x502000000010 is located 0 bytes inside of 5-byte region [0x502000000010,0x502000000015)
+freed by thread T0 here:
+    #0 0x7f011c8ff5e8 in operator delete(void*, unsigned long) ../../../../src/libsanitizer/asan/asan_new_delete.cpp:164
+    #1 0x55b6f3e1578b in main scratch.cpp:15
+    ...
+previously allocated by thread T0 here:
+    #0 0x7f011c8fe548 in operator new(unsigned long) ../../../../src/libsanitizer/asan/asan_new_delete.cpp:95
+    #1 0x55b6f3e15553 in main scratch.cpp:14
+    ...
+SUMMARY: AddressSanitizer: heap-use-after-free scratch.cpp:16 in main
+```
+
+`p->x` у рядку 16 читає 1 байт (поле `x`, зсув 0) з блока, який `delete` у рядку 15 уже звільнив: `p` — завислий вказівник. ASan показує всі три місця: де читали, де звільнили і де виділили.
+
+### Подвійне звільнення — `./scratch a b`
+
+```txt
+==426==ERROR: AddressSanitizer: attempting double-free on 0x502000000010 in thread T0:
+    #0 0x7ff5420ff5e8 in operator delete(void*, unsigned long) ../../../../src/libsanitizer/asan/asan_new_delete.cpp:164
+    #1 0x55fe1db37b3b in main scratch.cpp:20
+    ...
+freed by thread T0 here:
+    #0 0x7ff5420ff5e8 in operator delete(void*, unsigned long) ../../../../src/libsanitizer/asan/asan_new_delete.cpp:164
+    #1 0x55fe1db37b25 in main scratch.cpp:19
+    ...
+SUMMARY: AddressSanitizer: double-free ../../../../src/libsanitizer/asan/asan_new_delete.cpp:164 in operator delete(void*, unsigned long)
+```
+
+Другий `delete` у рядку 20 звільняє блок, який уже звільнив перший `delete` у рядку 19.
+
+### Виправлення
+
+У кожного `new` рівно один `delete`, а після нього вказівник обнуляється:
+
+```cpp
+Sprite* p = new Sprite{10, 5, 1, 0, true};
+std::cout << (int)p->x << '\n';   // читаємо, поки об'єкт живий
+delete p;                          // один раз
+p = nullptr;                       // завислого вказівника більше немає
+```
+
+`delete nullptr` нічого не робить, тож повторний `delete p` після `p = nullptr` вже не шкодить, а читання `p->x` впаде одразу на нульовому вказівнику, замість того щоб тихо прочитати чужу пам'ять. Після перевірки `scratch.cpp` видалено.
+
+## Карта пам'яті
+
+```txt
+0x000 ┌──────────────────────────────┐
+      │ CODE   2048 байтів           │  програма, PC стартує з 0x000
+0x800 ├──────────────────────────────┤
+      │ DATA   512 байтів            │  рядки, масиви (HELLO, дані пошуку)
+0xA00 ├──────────────────────────────┤
+      │ VRAM   256 байтів            │  екран 64×32, біт на піксель
+0xB00 ├──────────────────────────────┤
+      │ запас  256 байтів            │  не використовується
+0xC00 ├──────────────────────────────┤
+      │ HEAP   768 байтів            │  зарезервовано під купу гостя,
+      │        росте вгору ▼         │  поки ніхто не пише
+0xF00 ├──────────────────────────────┤
+      │ STACK  256 байтів            │  SP стартуватиме з 0xFFF
+      │        росте вниз ▲          │  (Lab 7)
+0xFFF └──────────────────────────────┘
+```
+
+Спрайти (`Sprite sprites[8]`) живуть на хості, у стеку `main`, а не в пам'яті `ember`. У пам'ять гостя потрапляють лише пікселі, які `tick` малює у VRAM.

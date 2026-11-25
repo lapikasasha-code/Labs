@@ -12,6 +12,7 @@ add_executable(ember
     src/cpu.cpp
     src/alu.cpp
     src/screen.cpp
+    src/sprite.cpp
 )
 
 if(MSVC)

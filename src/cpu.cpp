@@ -24,20 +24,20 @@ static Decoded decode(Byte op) {
     return d;
 }
 
-static std::uint16_t instruction_size(Byte op) {
+static std::uint16_t instruction_size(Op op) {
     switch (op) {
-    case OP_LOADI_A:
-    case OP_LOADI_B:
+    case Op::LoadiA:
+    case Op::LoadiB:
         return 2;
-    case OP_LOAD_A:
-    case OP_LOAD_B:
-    case OP_STORE_A:
-    case OP_STORE_B:
-    case OP_LOADH:
-    case OP_OUTS:
-    case OP_JMP:
-    case OP_JZ:
-    case OP_JNZ:
+    case Op::LoadA:
+    case Op::LoadB:
+    case Op::StoreA:
+    case Op::StoreB:
+    case Op::LoadH:
+    case Op::Outs:
+    case Op::Jmp:
+    case Op::Jz:
+    case Op::Jnz:
         return 3;
     default:
         return 1;
@@ -52,74 +52,74 @@ static void outs(const Memory& mem, std::size_t addr) {
     }
 }
 
-static bool exec_control(CPU& cpu, Byte op) {
+static bool exec_control(CPU& cpu, Op op) {
     switch (op) {
-    case OP_HALT: cpu.halted = true; return true;
-    case OP_NOP: return true;
-    case OP_OUT: std::cout << (char)cpu.a; return true;
-    case OP_OUTN: std::cout << (int)cpu.a << ' '; return true;
-    case OP_OUTS: outs(*cpu.mem, get16(*cpu.mem, (std::size_t)cpu.pc + 1)); return true;
+    case Op::Halt: cpu.halted = true; return true;
+    case Op::Nop: return true;
+    case Op::Out: std::cout << (char)cpu.a; return true;
+    case Op::Outn: std::cout << (int)cpu.a << ' '; return true;
+    case Op::Outs: outs(*cpu.mem, get16(*cpu.mem, (std::size_t)cpu.pc + 1)); return true;
     default: return false;
     }
 }
 
-static bool exec_alu(CPU& cpu, Byte op) {
+static bool exec_alu(CPU& cpu, Op op) {
     switch (op) {
-    case OP_ADD: cpu.a = alu_add(cpu.a, cpu.b, cpu.f); return true;
-    case OP_SUB: cpu.a = alu_sub(cpu.a, cpu.b, cpu.f); return true;
-    case OP_AND: cpu.a = alu_and(cpu.a, cpu.b, cpu.f); return true;
-    case OP_OR:  cpu.a = alu_or(cpu.a, cpu.b, cpu.f); return true;
-    case OP_XOR: cpu.a = alu_xor(cpu.a, cpu.b, cpu.f); return true;
-    case OP_NOT: cpu.a = alu_not(cpu.a, cpu.f); return true;
-    case OP_SHL: cpu.a = alu_shl(cpu.a, cpu.f); return true;
-    case OP_SHR: cpu.a = alu_shr(cpu.a, cpu.f); return true;
-    case OP_INC: cpu.a = alu_inc(cpu.a, cpu.f); return true;
-    case OP_DEC: cpu.a = alu_dec(cpu.a, cpu.f); return true;
-    case OP_CMP: alu_sub(cpu.a, cpu.b, cpu.f); return true;
+    case Op::Add: cpu.a = alu_add(cpu.a, cpu.b, cpu.f); return true;
+    case Op::Sub: cpu.a = alu_sub(cpu.a, cpu.b, cpu.f); return true;
+    case Op::And: cpu.a = alu_and(cpu.a, cpu.b, cpu.f); return true;
+    case Op::Or:  cpu.a = alu_or(cpu.a, cpu.b, cpu.f); return true;
+    case Op::Xor: cpu.a = alu_xor(cpu.a, cpu.b, cpu.f); return true;
+    case Op::Not: cpu.a = alu_not(cpu.a, cpu.f); return true;
+    case Op::Shl: cpu.a = alu_shl(cpu.a, cpu.f); return true;
+    case Op::Shr: cpu.a = alu_shr(cpu.a, cpu.f); return true;
+    case Op::Inc: cpu.a = alu_inc(cpu.a, cpu.f); return true;
+    case Op::Dec: cpu.a = alu_dec(cpu.a, cpu.f); return true;
+    case Op::Cmp: alu_sub(cpu.a, cpu.b, cpu.f); return true;
     default: return false;
     }
 }
 
-static bool exec_data(CPU& cpu, Byte op) {
+static bool exec_data(CPU& cpu, Op op) {
     Memory& mem = *cpu.mem;
     Byte imm = mem_get(mem, (std::size_t)cpu.pc + 1);
     std::uint16_t addr = get16(mem, (std::size_t)cpu.pc + 1);
 
     switch (op) {
-    case OP_LOADI_A: cpu.a = imm; return true;
-    case OP_LOADI_B: cpu.b = imm; return true;
-    case OP_LOAD_A: cpu.a = mem_get(mem, addr); return true;
-    case OP_LOAD_B: cpu.b = mem_get(mem, addr); return true;
-    case OP_STORE_A: mem_set(mem, addr, cpu.a); return true;
-    case OP_STORE_B: mem_set(mem, addr, cpu.b); return true;
-    case OP_MOV_AB: cpu.a = cpu.b; return true;
-    case OP_MOV_BA: cpu.b = cpu.a; return true;
-    case OP_LOADH: cpu.h = addr; return true;
-    case OP_LOAD_A_H: cpu.a = mem_get(mem, cpu.h); return true;
-    case OP_STORE_H_A: mem_set(mem, cpu.h, cpu.a); return true;
-    case OP_INCH: cpu.h = (std::uint16_t)(cpu.h + 1); return true;
-    case OP_DECH: cpu.h = (std::uint16_t)(cpu.h - 1); return true;
-    case OP_HLOW: cpu.a = (Byte)(cpu.h & 0xFF); return true;
+    case Op::LoadiA: cpu.a = imm; return true;
+    case Op::LoadiB: cpu.b = imm; return true;
+    case Op::LoadA: cpu.a = mem_get(mem, addr); return true;
+    case Op::LoadB: cpu.b = mem_get(mem, addr); return true;
+    case Op::StoreA: mem_set(mem, addr, cpu.a); return true;
+    case Op::StoreB: mem_set(mem, addr, cpu.b); return true;
+    case Op::MovAB: cpu.a = cpu.b; return true;
+    case Op::MovBA: cpu.b = cpu.a; return true;
+    case Op::LoadH: cpu.h = addr; return true;
+    case Op::LoadAH: cpu.a = mem_get(mem, cpu.h); return true;
+    case Op::StoreHA: mem_set(mem, cpu.h, cpu.a); return true;
+    case Op::IncH: cpu.h = (std::uint16_t)(cpu.h + 1); return true;
+    case Op::DecH: cpu.h = (std::uint16_t)(cpu.h - 1); return true;
+    case Op::HLow: cpu.a = (Byte)(cpu.h & 0xFF); return true;
     default: return false;
     }
 }
 
-static bool exec_jump(CPU& cpu, Byte op, std::uint16_t& next) {
+static bool exec_jump(CPU& cpu, Op op, std::uint16_t& next) {
     std::uint16_t target = get16(*cpu.mem, (std::size_t)cpu.pc + 1);
 
     switch (op) {
-    case OP_JMP: next = target; return true;
-    case OP_JZ: if (cpu.f.z) next = target; return true;
-    case OP_JNZ: if (!cpu.f.z) next = target; return true;
+    case Op::Jmp: next = target; return true;
+    case Op::Jz: if (cpu.f.z) next = target; return true;
+    case Op::Jnz: if (!cpu.f.z) next = target; return true;
     default: return false;
     }
 }
 
-static bool exec_screen(CPU& cpu, Byte op) {
+static bool exec_screen(CPU& cpu, Op op) {
     switch (op) {
-    case OP_CLS: clear(*cpu.mem); return true;
-    case OP_PLOT: cpu.f.c = !plot(*cpu.mem, cpu.a, cpu.b); return true;
-    case OP_SHOW: show(*cpu.mem); return true;
+    case Op::Cls: clear(*cpu.mem); return true;
+    case Op::Plot: cpu.f.c = !plot(*cpu.mem, cpu.a, cpu.b); return true;
+    case Op::Show: show(*cpu.mem); return true;
     default: return false;
     }
 }
@@ -134,7 +134,8 @@ void step(CPU& cpu) {
         cpu.halted = true;
         return;
     }
-    Byte op = mem_get(*cpu.mem, cpu.pc);
+    Byte byte = mem_get(*cpu.mem, cpu.pc);
+    Op op = (Op)byte;
     std::uint16_t size = instruction_size(op);
     if ((std::size_t)cpu.pc + size > MEM_SIZE) {
         std::cout << "error: instruction at PC=" << cpu.pc << " runs past the end of memory\n";
@@ -144,7 +145,7 @@ void step(CPU& cpu) {
 
     std::uint16_t next = (std::uint16_t)(cpu.pc + size);
     bool known = false;
-    Decoded d = decode(op);
+    Decoded d = decode(byte);
     switch (d.group) {
     case GROUP_CONTROL: known = exec_control(cpu, op); break;
     case GROUP_ALU: known = exec_alu(cpu, op); break;
@@ -156,7 +157,7 @@ void step(CPU& cpu) {
 
     if (!known) {
         std::cout << "error: unknown opcode 0x" << std::hex << std::setfill('0') << std::setw(2)
-                  << (int)op << " at PC=0x" << std::setw(4) << cpu.pc << std::dec
+                  << (int)byte << " at PC=0x" << std::setw(4) << cpu.pc << std::dec
                   << std::setfill(' ') << '\n';
         cpu.halted = true;
         return;

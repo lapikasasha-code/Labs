@@ -6,6 +6,7 @@
 // in Lab 1 you read this file, you do not write it.
 //
 // What you add in later labs is one more `else if` branch per command.
+#include <cstddef>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,6 +16,7 @@
 #include "dump.hpp"
 #include "memory.hpp"
 #include "screen.hpp"
+#include "sprite.hpp"
 
 // Turn a word into a number. Accepts decimal (65) and hex (0x41).
 // Returns false if the word is not a number at all.
@@ -57,6 +59,9 @@ static void print_help() {
               << "  cls               clear the screen\n"
               << "  plot <x> <y>      light one pixel\n"
               << "  frame             draw a frame around the screen\n"
+              << "  sprite <i> <x> <y> <vx> <vy>  set sprite i (0..7)\n"
+              << "  tick              move live sprites one step and show\n"
+              << "  layout            sizeof and field offsets of CPU, Flags, Sprite\n"
               << "  reg <a|b> <val>   put a value into register A or B\n"
               << "  regs              print PC H A B Z N C\n"
               << "  step              execute one instruction at PC\n"
@@ -69,6 +74,7 @@ int main() {
     Memory mem;  // 4096 bytes, on the stack, zeroed by the {} in memory.hpp
     CPU cpu;
     cpu.mem = &mem;
+    Sprite sprites[SPRITE_COUNT]{};
 
     std::cout << "ember 0.1 - 4096 bytes of memory you can see. Type `help`.\n";
 
@@ -162,6 +168,34 @@ int main() {
                        !plot(mem, (int)x, (int)y)) {
                 std::cout << "pixel must be inside 0..63 x 0..31\n";
             }
+        } else if (cmd == "sprite") {
+            std::string w[5];
+            long v[5] = {0, 0, 0, 0, 0};
+            bool ok = true;
+            for (int k = 0; k < 5; ++k) ok = ok && (words >> w[k]) && parse_number(w[k], v[k]);
+            if (!ok) {
+                std::cout << "usage: sprite <i> <x> <y> <vx> <vy>\n";
+            } else if (v[0] < 0 || v[0] >= SPRITE_COUNT || v[1] < 0 || v[1] >= SCREEN_W ||
+                       v[2] < 0 || v[2] >= SCREEN_H || v[3] < -8 || v[3] > 8 || v[4] < -8 ||
+                       v[4] > 8) {
+                std::cout << "need i 0..7, x 0..63, y 0..31, vx and vy -8..8\n";
+            } else {
+                sprites[v[0]] = Sprite{(std::uint8_t)v[1], (std::uint8_t)v[2], (std::int8_t)v[3],
+                                       (std::int8_t)v[4], true};
+            }
+        } else if (cmd == "tick") {
+            tick(sprites, SPRITE_COUNT, mem);
+        } else if (cmd == "layout") {
+            std::cout << "sizeof(Flags)  = " << sizeof(Flags) << "  z@" << offsetof(Flags, z)
+                      << " n@" << offsetof(Flags, n) << " c@" << offsetof(Flags, c) << '\n';
+            std::cout << "sizeof(CPU)    = " << sizeof(CPU) << "  mem@" << offsetof(CPU, mem)
+                      << " pc@" << offsetof(CPU, pc) << " a@" << offsetof(CPU, a) << " b@"
+                      << offsetof(CPU, b) << " h@" << offsetof(CPU, h) << " f@"
+                      << offsetof(CPU, f) << " halted@" << offsetof(CPU, halted) << '\n';
+            std::cout << "sizeof(Sprite) = " << sizeof(Sprite) << "  x@" << offsetof(Sprite, x)
+                      << " y@" << offsetof(Sprite, y) << " vx@" << offsetof(Sprite, vx)
+                      << " vy@" << offsetof(Sprite, vy) << " alive@" << offsetof(Sprite, alive)
+                      << '\n';
         } else if (cmd == "frame") {
             for (int x = 0; x < SCREEN_W; ++x) {
                 plot(mem, x, 0);
