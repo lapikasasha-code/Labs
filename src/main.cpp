@@ -50,7 +50,8 @@ static void print_help() {
               << "  get <addr>        show one byte four ways\n"
               << "  set <addr> <val>  write one byte (dec or 0x hex)\n"
               << "  set16 <addr> <val> write a 16-bit value, low byte first\n"
-              << "  run               step until HALT\n"
+              << "  run               step until HALT (at most 100000 steps)\n"
+              << "  find <lo> <hi> <byte>  first address in [lo, hi) holding byte\n"
               << "  reg <a|b> <val>   put a value into register A or B\n"
               << "  regs              print PC H A B Z N C\n"
               << "  step              execute one instruction at PC\n"
@@ -143,6 +144,25 @@ int main() {
             step(cpu);
         } else if (cmd == "run") {
             run(cpu);
+        } else if (cmd == "find") {
+            std::string l, h, v;
+            long lo = 0, hi = 0, value = 0;
+            if (!(words >> l) || !(words >> h) || !(words >> v) || !parse_number(l, lo) ||
+                !parse_number(h, hi) || !parse_number(v, value)) {
+                std::cout << "usage: find <lo> <hi> <byte>\n";
+            } else if (lo < 0 || hi < lo || hi > (long)MEM_SIZE) {
+                std::cout << "range must satisfy 0 <= lo <= hi <= " << MEM_SIZE << '\n';
+            } else if (value < 0 || value > 255) {
+                std::cout << "a byte is 0..255, got " << value << '\n';
+            } else {
+                std::uint16_t at = find(mem, (std::uint16_t)lo, (std::uint16_t)hi, (Byte)value);
+                if (at == hi) {
+                    std::cout << "not found in [" << lo << ", " << hi << ")\n";
+                } else {
+                    std::cout << "found at " << at << " (0x" << std::hex << at << std::dec
+                              << ")\n";
+                }
+            }
         } else if (cmd == "set16") {
             std::string a, v;
             long addr = 0, value = 0;

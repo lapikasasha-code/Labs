@@ -19,6 +19,7 @@ const Byte OP_SHL  = 0x16;
 const Byte OP_SHR  = 0x17;
 const Byte OP_INC  = 0x18;
 const Byte OP_DEC  = 0x19;
+const Byte OP_CMP  = 0x1A;
 const Byte OP_LOADI_A   = 0x20;
 const Byte OP_LOADI_B   = 0x21;
 const Byte OP_LOAD_A    = 0x22;
@@ -32,6 +33,10 @@ const Byte OP_LOAD_A_H  = 0x29;
 const Byte OP_STORE_H_A = 0x2A;
 const Byte OP_INCH      = 0x2B;
 const Byte OP_DECH      = 0x2C;
+const Byte OP_HLOW      = 0x2D;
+const Byte OP_JMP       = 0x30;
+const Byte OP_JZ        = 0x31;
+const Byte OP_JNZ       = 0x32;
 
 struct Flags {
     bool z = false;   // результат нульовий
@@ -51,5 +56,7 @@ struct CPU {
 };
 
 void step(CPU& cpu);
+const long RUN_STEP_LIMIT = 100000;
+
 void run(CPU& cpu);
 void dump_regs(const CPU& cpu);

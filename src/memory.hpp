@@ -35,3 +35,6 @@ std::uint16_t get16(const Memory& mem, std::size_t addr);
 // Write `value` as two bytes at `addr`, low byte first. Return false (and
 // change nothing) if `addr + 1` is outside the box.
 bool set16(Memory& mem, std::size_t addr, std::uint16_t value);
+
+// Return the first address in [lo, hi) that holds `needle`, or `hi` if none does.
+std::uint16_t find(const Memory& mem, std::uint16_t lo, std::uint16_t hi, Byte needle);
