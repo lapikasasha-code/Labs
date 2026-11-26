@@ -67,6 +67,7 @@ struct CPU {
     bool halted = false;     // після HALT наступні step відмовляють
 };
 
+std::uint16_t instruction_size(Op op);
 void step(CPU& cpu);
 const long RUN_STEP_LIMIT = 100000;
 const std::size_t OUTS_LIMIT = 256;

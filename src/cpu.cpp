@@ -25,7 +25,7 @@ static Decoded decode(Byte op) {
     return d;
 }
 
-static std::uint16_t instruction_size(Op op) {
+std::uint16_t instruction_size(Op op) {
     switch (op) {
     case Op::LoadiA:
     case Op::LoadiB:

@@ -14,6 +14,8 @@ add_executable(ember
     src/screen.cpp
     src/sprite.cpp
     src/stack.cpp
+    src/asm/lexer.cpp
+    src/asm/assembler.cpp
 )
 
 if(MSVC)

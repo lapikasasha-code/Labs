@@ -7,11 +7,14 @@
 //
 // What you add in later labs is one more `else if` branch per command.
 #include <cstddef>
+#include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
 
 #include "alu.hpp"
+#include "asm/assembler.hpp"
+#include "asm/lexer.hpp"
 #include "cpu.hpp"
 #include "dump.hpp"
 #include "memory.hpp"
@@ -46,6 +49,51 @@ static bool run_alu(const std::string& name, Byte a, Byte b, Byte& out, Flags& f
     return true;
 }
 
+static bool read_file(const std::string& path, std::string& out) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) return false;
+    std::ostringstream ss;
+    ss << in.rdbuf();
+    out = ss.str();
+    return true;
+}
+
+static bool load_program(const std::string& path, Memory& mem, bool listing) {
+    std::string src, error;
+    if (!read_file(path, src)) {
+        std::cout << "cannot open " << path << '\n';
+        return false;
+    }
+    Token* tokens = lex(src, error);
+    if (!tokens) {
+        std::cout << path << ": " << error << '\n';
+        return false;
+    }
+    bool ok = assemble(tokens, mem, error, listing);
+    destroy(tokens);
+    if (!ok) std::cout << path << ": " << error << '\n';
+    return ok;
+}
+
+static void print_tokens(const std::string& path) {
+    std::string src, error;
+    if (!read_file(path, src)) {
+        std::cout << "cannot open " << path << '\n';
+        return;
+    }
+    Token* tokens = lex(src, error);
+    if (!tokens) {
+        std::cout << path << ": " << error << '\n';
+        return;
+    }
+    for (const Token* t = tokens; t; t = t->next) {
+        std::cout << t->line << "  " << kind_name(t->kind);
+        if (!t->text.empty()) std::cout << "  " << t->text;
+        std::cout << '\n';
+    }
+    destroy(tokens);
+}
+
 static void print_help() {
     std::cout << "commands:\n"
               << "  inc <addr>        increase value by one byte\n"
@@ -67,15 +115,23 @@ static void print_help() {
               << "  stack             print SP and the top bytes of the stack\n"
               << "  step              execute one instruction at PC\n"
               << "  alu <op> <a> [b]  try one ALU operation (add sub and or xor not shl shr inc dec)\n"
+              << "  lex <file.asm>    print the tokens of a file, one per line\n"
+              << "  asm <file.asm>    assemble a file into memory at 0x000 and print the listing\n"
               << "  help              this list\n"
               << "  quit              leave\n";
 }
 
-int main() {
+int main(int argc, char** argv) {
     Memory mem;  // 4096 bytes, on the stack, zeroed by the {} in memory.hpp
     CPU cpu;
     cpu.mem = &mem;
     Sprite sprites[SPRITE_COUNT]{};
+
+    if (argc > 1) {
+        if (!load_program(argv[1], mem, false)) return 1;
+        run(cpu);
+        return 0;
+    }
 
     std::cout << "ember 0.1 - 4096 bytes of memory you can see. Type `help`.\n";
 
@@ -199,6 +255,21 @@ int main() {
                       << " y@" << offsetof(Sprite, y) << " vx@" << offsetof(Sprite, vx)
                       << " vy@" << offsetof(Sprite, vy) << " alive@" << offsetof(Sprite, alive)
                       << '\n';
+        } else if (cmd == "lex") {
+            std::string path;
+            if (!(words >> path)) {
+                std::cout << "usage: lex <file.asm>\n";
+            } else {
+                print_tokens(path);
+            }
+        } else if (cmd == "asm") {
+            std::string path;
+            if (!(words >> path)) {
+                std::cout << "usage: asm <file.asm>\n";
+            } else if (load_program(path, mem, true)) {
+                cpu = CPU{};
+                cpu.mem = &mem;
+            }
         } else if (cmd == "frame") {
             for (int x = 0; x < SCREEN_W; ++x) {
                 plot(mem, x, 0);
