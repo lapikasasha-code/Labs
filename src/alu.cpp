@@ -54,3 +54,9 @@ Byte alu_inc(Byte a, Flags& f) {
 Byte alu_dec(Byte a, Flags& f) {
     return set_zn((Byte)(a - 1), f);
 }
+
+Byte alu_mul(Byte a, Byte b, Flags& f) {
+    unsigned product = (unsigned)a * (unsigned)b;
+    f.c = product > 0xFF;
+    return set_zn((Byte)product, f);
+}

@@ -11,6 +11,7 @@ const Byte GROUP_ALU = 0x1;
 const Byte GROUP_DATA = 0x2;
 const Byte GROUP_JUMP = 0x3;
 const Byte GROUP_SCREEN = 0x4;
+const Byte GROUP_STACK = 0x5;
 
 struct Decoded {
     Byte group;
@@ -38,6 +39,7 @@ static std::uint16_t instruction_size(Op op) {
     case Op::Jmp:
     case Op::Jz:
     case Op::Jnz:
+    case Op::Call:
         return 3;
     default:
         return 1;
@@ -76,6 +78,7 @@ static bool exec_alu(CPU& cpu, Op op) {
     case Op::Inc: cpu.a = alu_inc(cpu.a, cpu.f); return true;
     case Op::Dec: cpu.a = alu_dec(cpu.a, cpu.f); return true;
     case Op::Cmp: alu_sub(cpu.a, cpu.b, cpu.f); return true;
+    case Op::Mul: cpu.a = alu_mul(cpu.a, cpu.b, cpu.f); return true;
     default: return false;
     }
 }
@@ -124,6 +127,53 @@ static bool exec_screen(CPU& cpu, Op op) {
     }
 }
 
+static void stack_error(CPU& cpu, const char* what, std::uint16_t& next) {
+    std::cout << "error: stack " << what << " at PC=0x" << std::hex << std::setfill('0')
+              << std::setw(4) << cpu.pc << ", SP=0x" << std::setw(4)
+              << stack_pointer(cpu.stack) << std::dec << std::setfill(' ') << '\n';
+    cpu.halted = true;
+    next = cpu.pc;
+}
+
+static bool exec_stack(CPU& cpu, Op op, std::uint16_t& next) {
+    Memory& mem = *cpu.mem;
+    switch (op) {
+    case Op::PushA:
+        if (!push(cpu.stack, mem, cpu.a)) stack_error(cpu, "overflow", next);
+        return true;
+    case Op::PushB:
+        if (!push(cpu.stack, mem, cpu.b)) stack_error(cpu, "overflow", next);
+        return true;
+    case Op::PopA:
+        if (!pop(cpu.stack, mem, cpu.a)) stack_error(cpu, "underflow", next);
+        return true;
+    case Op::PopB:
+        if (!pop(cpu.stack, mem, cpu.b)) stack_error(cpu, "underflow", next);
+        return true;
+    case Op::Call: {
+        std::uint16_t ret = (std::uint16_t)(cpu.pc + 3);
+        if (!push(cpu.stack, mem, (Byte)(ret & 0xFF)) ||
+            !push(cpu.stack, mem, (Byte)(ret >> 8))) {
+            stack_error(cpu, "overflow", next);
+            return true;
+        }
+        next = get16(mem, (std::size_t)cpu.pc + 1);
+        return true;
+    }
+    case Op::Ret: {
+        Byte hi = 0, lo = 0;
+        if (!pop(cpu.stack, mem, hi) || !pop(cpu.stack, mem, lo)) {
+            stack_error(cpu, "underflow", next);
+            return true;
+        }
+        next = (std::uint16_t)((hi << 8) | lo);
+        return true;
+    }
+    default:
+        return false;
+    }
+}
+
 void step(CPU& cpu) {
     if (cpu.halted) {
         std::cout << "halted\n";
@@ -152,6 +202,7 @@ void step(CPU& cpu) {
     case GROUP_DATA: known = exec_data(cpu, op); break;
     case GROUP_JUMP: known = exec_jump(cpu, op, next); break;
     case GROUP_SCREEN: known = exec_screen(cpu, op); break;
+    case GROUP_STACK: known = exec_stack(cpu, op, next); break;
     default: known = false; break;
     }
 
@@ -183,7 +234,8 @@ void run(CPU& cpu) {
 
 void dump_regs(const CPU& cpu) {
     std::cout << std::hex << std::setfill('0') << "PC=" << std::setw(4) << cpu.pc
-              << "  H=" << std::setw(4) << cpu.h << std::dec << std::setfill(' ')
+              << "  SP=" << std::setw(4) << stack_pointer(cpu.stack) << "  H=" << std::setw(4)
+              << cpu.h << std::dec << std::setfill(' ')
               << "  A=" << (int)cpu.a << "  B=" << (int)cpu.b << "  Z=" << cpu.f.z
               << " N=" << cpu.f.n << " C=" << cpu.f.c << (cpu.halted ? "  halted" : "")
               << '\n';

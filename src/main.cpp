@@ -63,7 +63,8 @@ static void print_help() {
               << "  tick              move live sprites one step and show\n"
               << "  layout            sizeof and field offsets of CPU, Flags, Sprite\n"
               << "  reg <a|b> <val>   put a value into register A or B\n"
-              << "  regs              print PC H A B Z N C\n"
+              << "  regs              print PC SP H A B Z N C\n"
+              << "  stack             print SP and the top bytes of the stack\n"
               << "  step              execute one instruction at PC\n"
               << "  alu <op> <a> [b]  try one ALU operation (add sub and or xor not shl shr inc dec)\n"
               << "  help              this list\n"
@@ -151,6 +152,8 @@ int main() {
             }
         } else if (cmd == "regs") {
             dump_regs(cpu);
+        } else if (cmd == "stack") {
+            print_stack(cpu.stack, mem);
         } else if (cmd == "step") {
             step(cpu);
         } else if (cmd == "run") {
@@ -191,7 +194,7 @@ int main() {
             std::cout << "sizeof(CPU)    = " << sizeof(CPU) << "  mem@" << offsetof(CPU, mem)
                       << " pc@" << offsetof(CPU, pc) << " a@" << offsetof(CPU, a) << " b@"
                       << offsetof(CPU, b) << " h@" << offsetof(CPU, h) << " f@"
-                      << offsetof(CPU, f) << " halted@" << offsetof(CPU, halted) << '\n';
+                      << offsetof(CPU, f) << " stack@" << offsetof(CPU, stack) << " halted@" << offsetof(CPU, halted) << '\n';
             std::cout << "sizeof(Sprite) = " << sizeof(Sprite) << "  x@" << offsetof(Sprite, x)
                       << " y@" << offsetof(Sprite, y) << " vx@" << offsetof(Sprite, vx)
                       << " vy@" << offsetof(Sprite, vy) << " alive@" << offsetof(Sprite, alive)

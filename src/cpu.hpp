@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include "memory.hpp"
+#include "stack.hpp"
 
 enum class Op : std::uint8_t {
     Halt    = 0x00,
@@ -19,6 +20,7 @@ enum class Op : std::uint8_t {
     Inc     = 0x18,
     Dec     = 0x19,
     Cmp     = 0x1A,
+    Mul     = 0x1B,
     LoadiA  = 0x20,
     LoadiB  = 0x21,
     LoadA   = 0x22,
@@ -39,6 +41,12 @@ enum class Op : std::uint8_t {
     Cls     = 0x40,
     Plot    = 0x41,
     Show    = 0x43,
+    PushA   = 0x50,
+    PopA    = 0x51,
+    PushB   = 0x52,
+    PopB    = 0x53,
+    Call    = 0x54,
+    Ret     = 0x55,
 };
 
 struct Flags {
@@ -55,6 +63,7 @@ struct CPU {
     Byte b = 0;
     std::uint16_t h = 0;
     Flags f;
+    Stack stack;
     bool halted = false;     // після HALT наступні step відмовляють
 };
 
